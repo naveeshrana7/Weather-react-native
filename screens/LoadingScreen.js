@@ -21,7 +21,7 @@ const LoadingScreen = ({ navigation }) => {
     <Modal isVisible={loading} backdropOpacity={0.8} animationIn="fadeIn" animationOut="fadeOut">
       <View style={styles.modalContainer}>
         <LottieView
-          source={require('../animations/animation.json')} // Replace with the correct path
+          source={require('../animations/animation3.json')} // Replace with the correct path
           autoPlay
           loop
           style={styles.animation}

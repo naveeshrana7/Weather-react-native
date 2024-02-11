@@ -1,89 +1,113 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { StarRatingDisplay } from 'react-native-star-rating-widget';
-import Icon from 'react-native-vector-icons/FontAwesome';
-const FeaturedRecipe = () => {
-  const navigation = useNavigation();
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, ScrollView } from 'react-native';
+import * as Location from 'expo-location';
+import axios from 'axios';
+import LottieView from 'lottie-react-native';
 
-  const handleFeaturedRecipePress = () => {
-    // Navigate to another screen with the featured recipe details
-    navigation.navigate('FeaturedRecipeDetails');
+const WeatherApp = () => {
+  const [location, setLocation] = useState(null);
+  const [weatherData, setWeatherData] = useState(null);
+  const [forecastData, setForecastData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+
+      // Request location permission
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        console.error('Location permission denied');
+        setLoading(false);
+        return;
+      }
+
+      // Get current location
+      let location = await Location.getCurrentPositionAsync({});
+      setLocation(location);
+
+      // Fetch current weather data based on location
+      const apiKey = '99e5d7b9be2926b409229a4b17747166';
+      const { latitude, longitude } = location.coords;
+      const weatherResponse = await axios.get(
+        `http://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=metric&appid=${apiKey}`
+      );
+      setWeatherData(weatherResponse.data);
+
+      // Fetch forecast weather data based on location
+      const forecastResponse = await axios.get(
+        `http://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&units=metric&appid=${apiKey}`
+      );
+      setForecastData(forecastResponse.data);
+    } catch (error) {
+      console.error('Error fetching weather data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return (
-    <TouchableOpacity style={styles.featuredRecipeContainer} onPress={handleFeaturedRecipePress}>
-      <Image source={require('../assets/noodles.png')} style={styles.featuredRecipeImage} />
-      <Text style={styles.featuredRecipeText}>Noodles</Text>
-    </TouchableOpacity>
-  );
-};
+  useEffect(() => {
+    fetchData();
+  }, []); // Run on mount
 
+  // Function to get the current day
+  const getCurrentDay = () => {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const date = new Date();
+    return days[date.getDay()];
+  };
 
-const FoodRecipeScreen = () => {
-  const navigation = useNavigation();
-  const [recipes, setRecipes] = useState([
-    { id: 'Sandwich', name: 'Sandwich', image: require('../assets/sandwich.png'), rating: 4, ingredients: ['Bread', 'Cheese', 'Tomato', 'Lettuce', 'Mayonnaise'] },
-    { id: 'Pizza', name: 'Pizza', image: require('../assets/pizza.png'), rating: 5, ingredients: ['Dough', 'Tomato Sauce', 'Cheese', 'Pepperoni', 'Mushrooms'] },
-    { id: 'Dosa', name: 'Dosa', image: require('../assets/dosa.png'), rating: 3.5, ingredients: ['Rice Flour', 'Black Lentils', 'Salt'] },
-    { id: 'Biryani', name: 'Biryani', image: require('../assets/biryani.png'), rating: 4.5, ingredients: ['Basmati Rice', 'Chicken', 'Onion', 'Yogurt', 'Spices'] },
-  ]);
-
-  const handleRecipePress = (recipeId) => {
-    if (recipeId === 'Sandwich') {
-      navigation.navigate('Sandwichdetail'); // Navigate to SandwichDetails screen
-    } else if (recipeId === 'Pizza') {
-      navigation.navigate('Pizzadetail'); // Navigate to PizzaDetails screen
-    } else if (recipeId === 'Dosa'){
-      navigation.navigate('Dosadetail');
-    } else if (recipeId === 'Biryani'){
-      navigation.navigate('Biryanidetail')
-    } else {
-      navigation.navigate('addindetail');
-    }
+  // Function to format date to 'DD/MM' format
+  const formatDate = (timestamp) => {
+    const date = new Date(timestamp * 1000); // Convert Unix timestamp to milliseconds
+    const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+    return date.toLocaleDateString('en-US', options);
   };
   
-  const addDish = () => {
-    const newDish = { id: `NewDish${recipes.length + 1}`, name: 'New Dish', image: require('../assets/emptyimg.png'), rating: 0, ingredients: [] };
-    setRecipes([...recipes, newDish]);
-  };
-
-  const removeDish=() =>{
-    if(recipes.length>0){
-      const updatedRecipe=[...recipes];
-      updatedRecipe.pop();
-      setRecipes(updatedRecipe);
+  const filteredForecastData = forecastData?.list?.reduce((acc, item) => {
+    const date = formatDate(item.dt);
+    if (!acc.find((el) => el.date === date) && acc.length < 5) {
+      acc.push({ date, forecast: item });
     }
-  };
+    return acc;
+  }, []);
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Food Recipes</Text>
+      <LottieView
+        source={require('../animations/animation2.json')}
+        autoPlay
+        loop
+        style={styles.animation}
+      />
+      {/* Big container for current weather information */}
+      <TouchableOpacity style={[styles.weatherInfo, { marginTop: 300 }]} onPress={fetchData}>
+          <Text style={styles.temperature}>
+            {weatherData?.main.temp}°C (Min: {forecastData?.list[0]?.main.temp_min}°C, Max: {forecastData?.list[0]?.main.temp_max}°C)
+          </Text>
+          <Text style={styles.location}>{weatherData?.name}</Text>
+          <Text style={styles.day}>{getCurrentDay()}</Text>
+          <Text style={styles.date}>{formatDate(weatherData?.dt)}</Text>
+        </TouchableOpacity>
 
-      {/* Display featured recipe container */}
-      <FeaturedRecipe />
 
-      {/* Display recipe containers */}
-      <ScrollView contentContainerStyle={styles.recipeContainer}>
-        {recipes.map((recipe) => (
-          <TouchableOpacity
-            key={recipe.id}
-            style={styles.recipe}
-            onPress={() => handleRecipePress(recipe.id)}
-          >
-            <Image source={recipe.image} style={styles.recipeImage} />
-            <Text style={styles.recipeName}>{recipe.name}</Text>
-            <StarRatingDisplay rating={recipe.rating} starStyle={styles.star} />
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-      {/* Button to add a new dish */}
-      <TouchableOpacity style={styles.addButton} onPress={addDish}>
-        <Icon name="plus" size={30} color="white" />
-      </TouchableOpacity>
+      {/* Separate view for forecast containers */}
+      <View style={styles.forecastView}>
+        <ScrollView contentContainerStyle={styles.forecastScrollView}>
+          {filteredForecastData?.map(({ date, forecast }, index) => (
+            <View style={styles.forecastContainer} key={index}>
+              <Text style={styles.forecastDay}>{date}</Text>
+              <View style={styles.forecastTempContainer}>
+                <Text style={styles.forecastTemp}>Max: {forecast.main.temp_max}°C</Text>
+                <Text style={styles.forecastTemp}>Min: {forecast.main.temp_min}°C</Text>
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
 
-      <TouchableOpacity style={styles.removeButton} onPress={removeDish}>
-        <Icon name="minus" size={30} color="white" />
-      </TouchableOpacity>
+      {/* Optional: Display loading indicator */}
+      {loading && <ActivityIndicator size="large" color="#fff" style={styles.loader} />}
     </View>
   );
 };
@@ -91,102 +115,88 @@ const FoodRecipeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 60, // Ensure content starts below status bar
-    paddingHorizontal: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 20,
-  },
-  featuredRecipeContainer: {
-    marginBottom: 20,
-    padding: 80,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    alignItems: 'left',
-  },
-  featuredRecipeText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    backgroundColor: 'white',
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 15,
+  animation: {
     position: 'absolute',
-    bottom: 10,
-    left: 10,
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 300, // Adjust height as needed
   },
-  recipeContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  recipe: {
-    width: '48%', // Each container occupies around 48% of the parent width with some spacing
-    marginBottom: 20,
+  weatherInfo: {
+    paddingTop: 350,
+    paddingRight:150,
     padding: 10,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 8,
+    color: '#000',
   },
-  recipeImage: {
-    width: '100%',
-    height: 150,
-    borderRadius: 8,
+  forecastView: {
+    marginTop: 20,
+    alignItems: 'flex-start',
+    right: 50,
+    marginVertical: 50,
+  },
+  forecastScrollView: {
+    alignItems: 'flex-start',
+  },
+  forecastContainer: {
+    marginTop: 20,
+    marginLeft: 20,
+    padding: 20,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  temperature: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  description: {
+    fontSize: 20,
+    color: '#000',
+    marginVertical: 10,
+  },
+  location: {
+    fontSize: 24,
+    color: '#000',
     marginBottom: 10,
   },
-  recipeName: {
+  humidity: {
     fontSize: 16,
-    fontWeight: 'bold',
+    color: '#000',
+    marginTop: 10,
+  },
+  loader: {
+    position: 'absolute',
+    bottom: 20,
+  },
+  day: {
+    fontSize: 18,
+    color: '#000',
+    marginTop: 10,
+  },
+  forecastDay: {
+    fontSize: 16,
+    color: '#000',
     marginBottom: 5,
   },
-  star: {
-    width: 20,
-    height: 25,
-    marginRight: 1,
+  forecastTempContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
-  featuredRecipeImage: {
-    width: '100%',
-    height: 200, // Adjust the height as needed
-    borderRadius: 8,
-},
-featuredRecipeContainer: {
-  position: 'relative', // Set position to relative
-  marginBottom: 20,
-  borderRadius: 8,
-  overflow: 'hidden', // Ensure the image stays within the container bounds
-},
-featuredRecipeText: {
-  position: 'absolute',
-  bottom: 10,
-  left: 10,
-  fontSize: 16,
-  fontWeight: 'bold',
-  color: 'white', // Adjust text color for visibility
-  zIndex: 1, // Ensure text is above the image
-},
-addButton: {
-  position: 'absolute',
-  bottom: 20,
-  right: 20,
-  backgroundColor: 'blue',
-  borderRadius: 50,
-  width: 60,
-  height: 60,
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-removeButton: {
-  position: 'absolute',
-  bottom: 20,
-  left: 20,
-  backgroundColor: 'red',
-  borderRadius: 50,
-  width: 60,
-  height: 60,
-  justifyContent: 'center',
-  alignItems: 'center',
-},
+  forecastTemp: {
+    fontSize: 14,
+    color: '#000',
+  },
 });
 
-export default FoodRecipeScreen;
+export default WeatherApp;
